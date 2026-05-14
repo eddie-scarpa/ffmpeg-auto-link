@@ -50,15 +50,29 @@ function Sync-All {
 # Initial Sync
 Sync-All
 
-# Watchers
-# 1-second delay ensures WinGet finishes moving files before we re-link
-$action = { Start-Sleep -Seconds 1; Sync-All }
+# --- WATCHER LOGIC ---
+$action = { 
+    # 2-second delay ensures WinGet finishes disk operations
+    Start-Sleep -Seconds 2
+    Sync-All 
+}
 
 $watchList = @($ffBase, $ytBase, $gyanBase)
+$eventTypes = @("Created", "Changed", "Deleted", "Renamed")
+
 foreach ($folder in $watchList) {
     if (Test-Path $folder) {
-        Register-ObjectEvent (New-Object System.IO.FileSystemWatcher $folder -Property @{EnableRaisingEvents=$true}) All -Action $action | Out-Null
+        $watcher = New-Object System.IO.FileSystemWatcher $folder
+        $watcher.IncludeSubdirectories = $true
+        $watcher.EnableRaisingEvents = $true
+
+        foreach ($event in $eventTypes) {
+            Register-ObjectEvent -InputObject $watcher -EventName $event -Action $action | Out-Null
+        }
     }
 }
 
-while ($true) { Wait-Event | Out-Null }
+# Keep the script alive for Task Scheduler
+while ($true) { 
+    Wait-Event -Timeout 3600 | Out-Null 
+}
